@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { loadDeckIds } from './DeckPage'
+import { calcStats } from '../utils/battle'
 import AdventureBattle from '../components/AdventureBattle'
 import type { Character, Equipment, Job, Skill } from '../types'
 
@@ -23,6 +24,9 @@ const pickEvent = (): EventType => {
   return 'character'
 }
 
+const getMaxHp = (c: CharWithJob): number =>
+  calcStats(c.job, c.level, [], { hp: c.iv_hp, atk: c.iv_atk, def: c.iv_def }).hp
+
 const AdventurePage = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -35,6 +39,11 @@ const AdventurePage = () => {
   const [gainedEquip, setGainedEquip] = useState<Equipment | null>(null)
   const [gainedChar, setGainedChar] = useState<CharWithJob | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [persistentHp, setPersistentHp] = useState<Record<string, number>>({})
+  const [autoMode, setAutoMode] = useState(false)
+
+  // advance は毎レンダーで最新版を ref に保持（useEffect の stale closure 回避）
+  const advanceRef = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {
     if (!user) return
@@ -51,6 +60,10 @@ const AdventurePage = () => {
         ...c, skills: (c.skills as { skill: Skill }[]).map(s => s.skill),
       })) as CharWithJob[]
       setDeckChars(chars)
+      // 初期HP = 最大HP
+      const hpMap: Record<string, number> = {}
+      chars.forEach(c => { hpMap[c.id] = getMaxHp(c) })
+      setPersistentHp(hpMap)
       setPhase('ready')
     }
     load()
@@ -68,7 +81,6 @@ const AdventurePage = () => {
     setStepCount(prev => prev + 1)
 
     if (type === 'battle') {
-
       setBattleKey(k => k + 1)
       setPhase('battling')
       setProcessing(false)
@@ -87,7 +99,6 @@ const AdventurePage = () => {
         await supabase.from('user_equipments').insert({ user_id: user!.id, equipment_id: equip.id })
         setGainedEquip(equip)
       } else {
-        // 装備データがない場合はゴールドで代替
         const amount = 50
         const { data: u } = await supabase.from('users').select('gold').eq('id', user!.id).single()
         await supabase.from('users').update({ gold: (u?.gold ?? 0) + amount }).eq('id', user!.id)
@@ -123,12 +134,49 @@ const AdventurePage = () => {
     setProcessing(false)
   }
 
+  // refを最新の advance で更新（毎レンダー）
+  advanceRef.current = advance
+
+  // 自動冒険：ready/event フェーズで自動進行
+  useEffect(() => {
+    if (!autoMode) return
+    if (phase === 'event') {
+      const id = setTimeout(() => setPhase('ready'), 2000)
+      return () => clearTimeout(id)
+    }
+    if (phase === 'ready') {
+      const id = setTimeout(() => advanceRef.current(), 1500)
+      return () => clearTimeout(id)
+    }
+  }, [phase, autoMode])
+
+  const handleBattleContinue = (finalHp: Record<string, number>) => {
+    // バトル後に生存キャラのHPを30%回復（最大HP上限）
+    const healed: Record<string, number> = {}
+    for (const c of deckChars) {
+      const cur = finalHp[c.id] ?? 0
+      if (cur > 0) {
+        const maxH = getMaxHp(c)
+        healed[c.id] = Math.min(maxH, Math.floor(cur + maxH * 0.3))
+      } else {
+        healed[c.id] = 0
+      }
+    }
+    setPersistentHp(healed)
+    const anyAlive = Object.values(healed).some(hp => hp > 0)
+    setPhase(anyAlive ? 'ready' : 'gameover')
+  }
+
   const restart = () => {
+    const hpMap: Record<string, number> = {}
+    deckChars.forEach(c => { hpMap[c.id] = getMaxHp(c) })
+    setPersistentHp(hpMap)
     setStepCount(0)
     setEventType(null)
     setGoldGained(0)
     setGainedEquip(null)
     setGainedChar(null)
+    setAutoMode(false)
     setPhase('ready')
   }
 
@@ -194,7 +242,9 @@ const AdventurePage = () => {
               key={battleKey}
               playerChars={deckChars}
               avgLevel={avgLevel}
-              onContinue={() => setPhase('ready')}
+              initialHp={persistentHp}
+              autoMode={autoMode}
+              onContinue={handleBattleContinue}
               onGameOver={() => setPhase('gameover')}
             />
           </div>
@@ -256,34 +306,74 @@ const AdventurePage = () => {
               </div>
             )}
 
-            <button onClick={() => setPhase('ready')}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors">
-              進む →
-            </button>
+            {autoMode ? (
+              <p className="text-center text-xs text-gray-500">自動で次へ進みます...</p>
+            ) : (
+              <button onClick={() => setPhase('ready')}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors">
+                進む →
+              </button>
+            )}
           </div>
         )}
 
         {/* ===== 待機（進むボタン） ===== */}
         {phase === 'ready' && (
           <div className="flex-1 flex flex-col justify-between">
-            <div className="space-y-1.5">
-              {deckChars.map(c => (
-                <div key={c.id}
-                  className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border"
-                  style={{ borderColor: ivColor(c) }}>
-                  <span className="text-sm">{JOB_ICONS[c.job_id]}</span>
-                  <span className="text-sm font-medium truncate">{c.name}</span>
-                  <span className="text-xs text-gray-400 ml-auto">Lv.{c.level}</span>
-                </div>
-              ))}
+            {/* キャラHP一覧 */}
+            <div className="space-y-2">
+              {deckChars.map(c => {
+                const maxH = getMaxHp(c)
+                const curH = persistentHp[c.id] ?? maxH
+                const pct = Math.max(0, (curH / maxH) * 100)
+                const hpColor = pct > 50 ? 'bg-green-500' : pct > 25 ? 'bg-yellow-500' : 'bg-red-500'
+                const isDead = curH <= 0
+                return (
+                  <div key={c.id}
+                    className={`bg-gray-800 rounded-lg px-3 py-2 border-2 ${isDead ? 'opacity-40' : ''}`}
+                    style={{ borderColor: ivColor(c) }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm">{JOB_ICONS[c.job_id]}</span>
+                      <span className="text-sm font-medium truncate flex-1">{c.name}</span>
+                      <span className="text-xs text-gray-400">Lv.{c.level}</span>
+                      {isDead && <span className="text-xs text-red-400 font-bold">戦闘不能</span>}
+                    </div>
+                    <div className="h-1.5 bg-gray-600 rounded-full overflow-hidden">
+                      <div className={`h-full ${hpColor} transition-all`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5 text-right tabular-nums">
+                      {Math.max(0, curH)} / {maxH}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-            <button
-              onClick={advance}
-              disabled={processing}
-              className="mt-6 w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-5 rounded-2xl text-lg transition-colors"
-            >
-              {processing ? '...' : '進む →'}
-            </button>
+
+            {/* 自動冒険トグル＋進むボタン */}
+            <div className="mt-6 space-y-2">
+              <button
+                onClick={() => setAutoMode(v => !v)}
+                className={`w-full py-2.5 rounded-xl text-sm font-medium transition-colors border-2 ${
+                  autoMode
+                    ? 'bg-emerald-900/50 border-emerald-500 text-emerald-400'
+                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                {autoMode ? '🤖 自動冒険 ON（タップで停止）' : '🤖 自動冒険 OFF'}
+              </button>
+              {!autoMode && (
+                <button
+                  onClick={advance}
+                  disabled={processing}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-5 rounded-2xl text-lg transition-colors"
+                >
+                  {processing ? '...' : '進む →'}
+                </button>
+              )}
+              {autoMode && (
+                <p className="text-center text-xs text-gray-500 py-2">自動で冒険中...</p>
+              )}
+            </div>
           </div>
         )}
 

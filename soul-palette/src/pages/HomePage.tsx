@@ -80,6 +80,12 @@ const HomePage = () => {
             <div className="font-medium">冒険</div>
             <div className="text-xs text-gray-400 mt-1">進むたびにイベント発生</div>
           </button>
+          <button onClick={() => navigate('/shop')}
+            className="bg-gray-800 hover:bg-gray-700 border border-gray-700 col-span-2 rounded-xl p-5 text-center transition-colors">
+            <div className="text-3xl mb-2">🏪</div>
+            <div className="font-medium">ショップ</div>
+            <div className="text-xs text-gray-400 mt-1">装備・キャラを購入</div>
+          </button>
           <button onClick={() => navigate('/battle')}
             className="bg-gray-800 hover:bg-gray-700 border border-gray-700 col-span-2 rounded-xl p-5 text-center transition-colors">
             <div className="text-3xl mb-2">⚡</div>

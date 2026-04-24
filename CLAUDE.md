@@ -48,6 +48,7 @@ soul-palette/src/
 │   ├── EquipmentPage.tsx
 │   ├── QuestPage.tsx
 │   ├── BattlePage.tsx          # 自由バトル・クエストバトル共用
+│   ├── ShopPage.tsx            # ショップ（装備・キャラ購入、ラインナップ更新）
 │   ├── AdventurePage.tsx       # 冒険（進むたびにランダムイベント）
 │   └── EnhancePage.tsx         # 強化（合成タブ。将来タブ追加予定）
 ├── types/index.ts
@@ -72,6 +73,7 @@ soul-palette/src/
 | 自由バトル | ✅ | デッキ自動使用、スキップ機能あり |
 | 強化（合成） | ✅ | 同職業キャラ消費 → max_level+5（上限100） |
 | 冒険 | ✅ | 進むたびイベント発生、バトルで負けるまで継続 |
+| ショップ | ✅ | 装備5件・キャラ3件のランダムラインナップ、gold消費で購入、更新ボタンでリフレッシュ（localStorage: soulpalette_shop） |
 
 ---
 

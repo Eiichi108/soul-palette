@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import CharEquipModal from '../components/CharEquipModal'
-import type { Character, Job, Skill } from '../types'
+import { calcStats } from '../utils/stats'
+import type { Character, CharacterEquipment, Job, Skill } from '../types'
 
 const JOB_ICONS: Record<number, string> = { 1: '⚔️', 2: '🔮', 3: '👊', 4: '🏹' }
 
 const ivColor = (c: { iv_atk: number; iv_hp: number; iv_def: number }) =>
   `rgb(${c.iv_atk}, ${c.iv_hp}, ${c.iv_def})`
-type CharWithJob = Character & { job: Job; skills: Skill[] }
+type CharWithJob = Character & { job: Job; skills: Skill[]; character_equipments: CharacterEquipment[] }
 
 export const DECK_KEY = 'soulpalette_deck'
 
@@ -30,9 +31,13 @@ const DeckPage = () => {
     const load = async () => {
       const { data } = await supabase
         .from('characters')
-        .select('*, job:jobs(*), skills:character_skills(skill:skills(*))')
+        .select('*, job:jobs(*), skills:character_skills(skill:skills(*)), character_equipments:character_equipments(*, user_equipment:user_equipments(*, equipment:equipments(*)))')
         .eq('user_id', user.id)
-      if (data) setChars(data.map(c => ({ ...c, skills: (c.skills as { skill: Skill }[]).map(s => s.skill) })))
+      if (data) setChars(data.map(c => ({
+        ...c,
+        skills: (c.skills as { skill: Skill }[]).map(s => s.skill),
+        character_equipments: c.character_equipments ?? [],
+      })))
     }
     load()
   }, [user])
@@ -79,30 +84,50 @@ const DeckPage = () => {
 
       <main className="max-w-lg mx-auto px-4 py-4">
         <p className="text-xs text-gray-400 mb-2">デッキ（{filledCount}/4）— タップで装備変更 / ×で外す</p>
-        <div className="grid grid-cols-4 gap-2 mb-6">
+        <div className="grid grid-cols-2 gap-2 mb-6">
           {deck.map((char, i) => (
             <div
               key={i}
               onClick={() => char && setEquipTarget({ id: char.id, name: char.name })}
-              className={`aspect-square rounded-xl border-2 flex flex-col items-center justify-center transition-colors relative overflow-hidden ${
+              className={`rounded-xl border-2 p-3 flex flex-col transition-colors relative min-h-28 ${
                 char
                   ? 'bg-gray-800/80 cursor-pointer active:bg-gray-700/80'
-                  : 'border-gray-600 bg-gray-800/50 border-dashed'
+                  : 'border-gray-600 bg-gray-800/50 border-dashed items-center justify-center'
               }`}
               style={char ? { borderColor: ivColor(char) } : undefined}
             >
               {char ? (
                 <>
-                  <span className="text-2xl leading-none">{JOB_ICONS[char.job_id]}</span>
-                  <span className="text-xs font-medium mt-1 px-1 w-full text-center truncate leading-tight">{char.name}</span>
-                  <span className="text-xs text-gray-400">Lv.{char.level}</span>
                   <button
                     onClick={e => { e.stopPropagation(); removeFromDeck(i) }}
-                    className="absolute top-0 right-0 p-1.5 text-gray-500 hover:text-red-400 transition-colors leading-none"
+                    className="absolute top-1 right-1 p-1 text-gray-500 hover:text-red-400 transition-colors leading-none text-sm"
                   >×</button>
+                  <div className="flex items-center gap-1.5 pr-4 mb-0.5">
+                    <span className="text-lg leading-none">{JOB_ICONS[char.job_id]}</span>
+                    <span className="font-medium text-sm truncate">{char.name}</span>
+                  </div>
+                  <span className="text-xs text-gray-400 mb-1">Lv.{char.level}</span>
+                  {(() => {
+                    const st = calcStats(char.job, char.level, char.character_equipments, { hp: char.iv_hp, atk: char.iv_atk, def: char.iv_def })
+                    return (
+                      <div className="grid grid-cols-2 gap-x-2 text-xs mb-2">
+                        <span className="text-red-400">HP {st.hp}</span>
+                        <span className="text-orange-400">ATK {st.atk}</span>
+                        <span className="text-blue-400">DEF {st.def}</span>
+                        <span className="text-green-400">SPD {st.spd}</span>
+                      </div>
+                    )
+                  })()}
+                  <div className="flex flex-wrap gap-1">
+                    {char.skills.map(s => (
+                      <span key={s.id} className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded leading-tight">
+                        {s.name}
+                      </span>
+                    ))}
+                  </div>
                 </>
               ) : (
-                <span className="text-gray-600 text-xl font-light">+</span>
+                <span className="text-gray-600 text-2xl font-light">+</span>
               )}
             </div>
           ))}
@@ -132,6 +157,24 @@ const DeckPage = () => {
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{c.name}</div>
                     <div className="text-xs text-gray-400">{c.job.name} Lv.{c.level}</div>
+                    {(() => {
+                      const st = calcStats(c.job, c.level, c.character_equipments, { hp: c.iv_hp, atk: c.iv_atk, def: c.iv_def })
+                      return (
+                        <div className="flex gap-2 text-xs my-1">
+                          <span className="text-red-400">HP {st.hp}</span>
+                          <span className="text-orange-400">ATK {st.atk}</span>
+                          <span className="text-blue-400">DEF {st.def}</span>
+                          <span className="text-green-400">SPD {st.spd}</span>
+                        </div>
+                      )
+                    })()}
+                    <div className="flex flex-wrap gap-1">
+                      {c.skills.map(s => (
+                        <span key={s.id} className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded leading-tight">
+                          {s.name}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <span className="text-purple-400 text-xs flex-shrink-0">追加 →</span>
                 </button>
