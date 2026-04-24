@@ -9,6 +9,7 @@ import BattlePage from './pages/BattlePage'
 import DeckPage from './pages/DeckPage'
 import QuestPage from './pages/QuestPage'
 import EnhancePage from './pages/EnhancePage'
+import AdventurePage from './pages/AdventurePage'
 
 // 認証済みの場合のみアクセス可能なルート
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -94,6 +95,7 @@ const AppRoutes = () => {
       <Route path="/deck" element={<PrivateRoute><DeckPage /></PrivateRoute>} />
       <Route path="/quest" element={<PrivateRoute><QuestPage /></PrivateRoute>} />
       <Route path="/enhance" element={<PrivateRoute><EnhancePage /></PrivateRoute>} />
+      <Route path="/adventure" element={<PrivateRoute><AdventurePage /></PrivateRoute>} />
       {/* 未定義のパスはホームへリダイレクト */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

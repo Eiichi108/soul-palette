@@ -68,6 +68,7 @@ const AdventurePage = () => {
     setStepCount(prev => prev + 1)
 
     if (type === 'battle') {
+
       setBattleKey(k => k + 1)
       setPhase('battling')
       setProcessing(false)

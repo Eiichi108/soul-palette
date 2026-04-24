@@ -2,24 +2,38 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { calcStats } from '../utils/battle'
 import { initBattleChar, generateCpuTeam, runBattle } from '../utils/battleEngine'
-import type { BattleCharacter, Character, Job, Skill } from '../types'
+import type { BattleCharacter, BattleResult, Character, Job, Skill } from '../types'
 
 const JOB_ICONS: Record<number, string> = { 1: '⚔️', 2: '🔮', 3: '👊', 4: '🏹' }
 
-const HpBar = ({ char }: { char: BattleCharacter }) => {
+const CharCard = ({ char }: { char: BattleCharacter }) => (
+  <div className={`bg-gray-700 rounded-lg flex flex-col items-center justify-center p-1 h-16 ${!char.isAlive ? 'opacity-40' : ''}`}>
+    <span className="text-lg leading-none">{JOB_ICONS[char.jobId]}</span>
+    <span className="text-[9px] font-medium truncate w-full text-center mt-0.5 leading-none px-0.5">{char.name}</span>
+    {char.shield > 0 && <span className="text-[8px] text-blue-300 leading-none">🛡{char.shield}</span>}
+    {char.statusEffects.length > 0 && (
+      <div className="flex gap-0.5 flex-wrap justify-center">
+        {char.statusEffects.map((e, i) => (
+          <span key={i} className="text-[8px] leading-none">
+            {e.type === 'poison' ? '☠' : e.type === 'paralysis' ? '⚡' : e.type === 'stun' ? '💫' : '↓'}
+          </span>
+        ))}
+      </div>
+    )}
+  </div>
+)
+
+const CharHpBar = ({ char }: { char: BattleCharacter }) => {
   const pct = Math.max(0, (char.currentHp / char.maxHp) * 100)
   const color = pct > 50 ? 'bg-green-500' : pct > 25 ? 'bg-yellow-500' : 'bg-red-500'
   return (
-    <div className={`rounded-lg p-2 bg-gray-700 ${!char.isAlive ? 'opacity-40' : ''}`}>
-      <div className="flex items-center gap-1 mb-1">
-        <span className="text-xs">{JOB_ICONS[char.jobId]}</span>
-        <span className="text-xs font-medium truncate">{char.name}</span>
-        {char.shield > 0 && <span className="text-xs text-blue-300 ml-auto">🛡{char.shield}</span>}
-      </div>
-      <div className="h-1.5 bg-gray-600 rounded-full overflow-hidden">
+    <div>
+      <div className="h-2 bg-gray-600 rounded-full overflow-hidden">
         <div className={`h-full ${color} transition-all duration-300`} style={{ width: `${pct}%` }} />
       </div>
-      <div className="text-xs text-gray-400 mt-0.5">{Math.max(0, char.currentHp)}/{char.maxHp}</div>
+      <div className="text-[9px] text-gray-400 text-center mt-0.5 leading-none tabular-nums">
+        {Math.max(0, char.currentHp)}
+      </div>
     </div>
   )
 }
@@ -34,11 +48,12 @@ type Props = {
 const AdventureBattle = ({ playerChars, avgLevel, onContinue, onGameOver }: Props) => {
   const [playerTeam, setPlayerTeam] = useState<BattleCharacter[]>([])
   const [cpuTeam, setCpuTeam] = useState<BattleCharacter[]>([])
-  const [visibleLogs, setVisibleLogs] = useState<string[]>([])
+  const [currentLog, setCurrentLog] = useState<string>('')
   const [battlePhase, setBattlePhase] = useState<'loading' | 'fighting' | 'done'>('loading')
   const [winner, setWinner] = useState<'player' | 'cpu' | 'draw' | null>(null)
-  const logRef = useRef<HTMLDivElement>(null)
   const started = useRef(false)
+  const timeoutIds = useRef<ReturnType<typeof setTimeout>[]>([])
+  const battleResult = useRef<BattleResult | null>(null)
 
   useEffect(() => {
     if (started.current) return
@@ -59,13 +74,15 @@ const AdventureBattle = ({ playerChars, avgLevel, onContinue, onGameOver }: Prop
       setBattlePhase('fighting')
 
       const res = runBattle(pTeam.map(c => ({ ...c })), cTeam.map(c => ({ ...c })))
+      battleResult.current = res
       setWinner(res.winner)
 
+      timeoutIds.current = []
       let delay = 0
       res.logs.forEach((log, i) => {
-        delay += log.message.startsWith('===') ? 200 : 600
-        setTimeout(() => {
-          setVisibleLogs(prev => [...prev, log.message])
+        delay += log.message.startsWith('===') ? 400 : 1200
+        const id = setTimeout(() => {
+          setCurrentLog(log.message)
           const applySnap = (prev: BattleCharacter[]) =>
             prev.map(c => {
               const s = log.snapshot.find(x => x.id === c.id)
@@ -73,16 +90,24 @@ const AdventureBattle = ({ playerChars, avgLevel, onContinue, onGameOver }: Prop
             })
           setPlayerTeam(applySnap)
           setCpuTeam(applySnap)
-          if (i === res.logs.length - 1) setTimeout(() => setBattlePhase('done'), 500)
+          if (i === res.logs.length - 1) setTimeout(() => setBattlePhase('done'), 800)
         }, delay)
+        timeoutIds.current.push(id)
       })
     }
     run()
   }, [])
 
-  useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
-  }, [visibleLogs])
+  const skipBattle = () => {
+    const res = battleResult.current
+    if (!res) return
+    timeoutIds.current.forEach(id => clearTimeout(id))
+    timeoutIds.current = []
+    setPlayerTeam(res.finalPlayerTeam)
+    setCpuTeam(res.finalCpuTeam)
+    setCurrentLog(res.logs[res.logs.length - 1]?.message ?? '')
+    setBattlePhase('done')
+  }
 
   if (battlePhase === 'loading') {
     return <div className="text-center py-8 text-purple-400 text-sm">バトル準備中...</div>
@@ -90,26 +115,37 @@ const AdventureBattle = ({ playerChars, avgLevel, onContinue, onGameOver }: Prop
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <div className="text-xs text-blue-400 mb-1 text-center">味方</div>
-          <div className="space-y-1">{playerTeam.map(c => <HpBar key={c.id} char={c} />)}</div>
+      <div className="space-y-1">
+        <div className="text-xs text-red-400 text-center">敵</div>
+        <div className="grid grid-cols-4 gap-1">
+          {cpuTeam.map(c => <CharCard key={c.id} char={c} />)}
         </div>
-        <div>
-          <div className="text-xs text-red-400 mb-1 text-center">敵</div>
-          <div className="space-y-1">{cpuTeam.map(c => <HpBar key={c.id} char={c} />)}</div>
+        <div className="grid grid-cols-4 gap-1">
+          {cpuTeam.map(c => <CharHpBar key={c.id} char={c} />)}
+        </div>
+        <div className="text-xs text-blue-400 text-center pt-1">味方</div>
+        <div className="grid grid-cols-4 gap-1">
+          {playerTeam.map(c => <CharCard key={c.id} char={c} />)}
+        </div>
+        <div className="grid grid-cols-4 gap-1">
+          {playerTeam.map(c => <CharHpBar key={c.id} char={c} />)}
         </div>
       </div>
 
-      <div ref={logRef} className="overflow-y-auto px-3 py-2 space-y-1 bg-gray-950 rounded-lg" style={{ maxHeight: '180px' }}>
-        {visibleLogs.map((msg, i) => (
-          <p key={i} className={`text-xs ${
-            msg.startsWith('===') ? 'text-yellow-400 font-bold mt-1'
-            : msg.includes('倒れた') ? 'text-red-400'
-            : msg.includes('回復') ? 'text-green-400'
-            : 'text-gray-300'
-          }`}>{msg}</p>
-        ))}
+      {battlePhase === 'fighting' && (
+        <button onClick={skipBattle}
+          className="w-full text-xs text-gray-500 hover:text-gray-300 py-1 text-right pr-1 transition-colors">
+          スキップ »
+        </button>
+      )}
+
+      <div className="bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 min-h-[64px] flex items-center">
+        <p className={`text-sm w-full ${
+          currentLog.startsWith('===') ? 'text-yellow-400 font-bold text-center'
+          : currentLog.includes('倒れた') ? 'text-red-400'
+          : currentLog.includes('回復') ? 'text-green-400'
+          : 'text-gray-200'
+        }`}>{currentLog}</p>
       </div>
 
       {battlePhase === 'done' && winner && (

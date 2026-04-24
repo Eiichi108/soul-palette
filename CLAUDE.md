@@ -192,12 +192,12 @@ npm install @supabase/supabase-js react-router-dom
 
 ### 0-5. GitHubリポジトリ作成
 
-- [ ] GitHub でリポジトリ作成（名前：`soul-palette`）
-- [ ] ローカルと紐付け：
+- [x] GitHub でリポジトリ作成（名前：`soul-palette`）
+- [x] ローカルと紐付け（https://github.com/Eiichi108/soul-palette.git）：
 
 ```bash
 git init
-git remote add origin https://github.com/YOUR_NAME/soul-palette.git
+git remote add origin https://github.com/Eiichi108/soul-palette.git
 git add .
 git commit -m "initial commit"
 git push -u origin main
@@ -205,20 +205,15 @@ git push -u origin main
 
 ### 0-6. Supabaseプロジェクト作成
 
-- [ ] https://supabase.com にアクセスしてプロジェクト作成
-- [ ] Project URL と anon key をメモ（後で `.env` に貼る）
-- [ ] `.env.local` をプロジェクトルートに作成：
-
-```
-VITE_SUPABASE_URL=your_project_url
-VITE_SUPABASE_ANON_KEY=your_anon_key
-```
+- [x] https://supabase.com にアクセスしてプロジェクト作成（ID: yzanwghtwpqylpeutfjn）
+- [x] Publishable key（anon相当）を取得
+- [x] `.env.local` をプロジェクトルートに作成済み
 
 ### 0-7. Vercelデプロイ設定
 
-- [ ] https://vercel.com でGitHubと連携
-- [ ] `soul-palette` リポジトリを選択してデプロイ
-- [ ] Vercelの環境変数に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を追加
+- [x] https://vercel.com でGitHubと連携
+- [x] `soul-palette` リポジトリを選択、Root Directoryを `soul-palette/` に設定してデプロイ
+- [x] Vercelの環境変数に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を追加
 
 **✅ Phase 0 完了条件：** `npm run dev` でlocalhost起動 & Vercelで公開URLが取得できた
 
@@ -230,13 +225,13 @@ VITE_SUPABASE_ANON_KEY=your_anon_key
 
 ### 1-1. Supabaseクライアント設定
 
-- [ ] `src/lib/supabase.ts` をClaudeに生成してもらう
+- [x] `src/lib/supabase.ts` 作成済み
 
 ### 1-2. 認証ページ作成
 
-- [ ] `src/pages/AuthPage.tsx`（ログイン / 新規登録フォーム）
-- [ ] メール + パスワード認証
-- [ ] Googleログインボタン
+- [x] `src/pages/AuthPage.tsx`（ログイン / 新規登録フォーム）
+- [x] メール + パスワード認証
+- [x] Googleログインボタン
 
 ### 1-3. Google OAuth設定
 
@@ -246,12 +241,12 @@ VITE_SUPABASE_ANON_KEY=your_anon_key
 
 ### 1-4. 認証状態管理
 
-- [ ] `src/contexts/AuthContext.tsx`（ログイン状態をアプリ全体で管理）
-- [ ] ログアウト機能
+- [x] `src/contexts/AuthContext.tsx`（ログイン状態をアプリ全体で管理）
+- [x] ログアウト機能
 
 ### 1-5. ルーティング設定
 
-- [ ] `src/App.tsx` にルート設定（未ログイン→認証ページ / ログイン済み→ホーム）
+- [x] `src/App.tsx` にルート設定（未ログイン→認証ページ / ログイン済み→ホーム）
 
 **✅ Phase 1 完了条件：** メール or Googleでログイン・ログアウトができる
 
@@ -263,28 +258,29 @@ VITE_SUPABASE_ANON_KEY=your_anon_key
 
 ### 2-1. テーブル設計・作成
 
-- [ ] `users`（プロフィール）
-- [ ] `characters`（キャラクター基本情報）
-- [ ] `character_skills`（キャラが持つスキル4つ）
-- [ ] `skills`（スキルマスターデータ）
-- [ ] `jobs`（職業マスターデータ）
-- [ ] `equipments`（装備マスターデータ）
-- [ ] `character_equipments`（キャラが装備しているもの）
-- [ ] `user_equipments`（ユーザーの装備所持一覧）
-- [ ] `quests`（クエストマスターデータ）
-- [ ] `user_quests`（クエスト進捗）
-- [ ] `battle_logs`（バトル履歴）
+- [x] `users`（プロフィール）
+- [x] `characters`（キャラクター基本情報）
+- [x] `character_skills`（キャラが持つスキル4つ）
+- [x] `skills`（スキルマスターデータ）
+- [x] `jobs`（職業マスターデータ）
+- [x] `equipments`（装備マスターデータ）
+- [x] `character_equipments`（キャラが装備しているもの）
+- [x] `user_equipments`（ユーザーの装備所持一覧）
+- [x] `quests`（クエストマスターデータ）
+- [x] `user_quests`（クエスト進捗）
+- [x] `battle_logs`（バトル履歴）
 
 > ※ 職業相性はMVP版で実装しないため `job_compatibility` テーブルは不要
 
 ### 2-2. Row Level Security（RLS）設定
 
-- [ ] 各テーブルに適切なRLSポリシーを設定（自分のデータしか見えない）
+- [x] 各テーブルに適切なRLSポリシーを設定（自分のデータしか見えない）
+- [x] 新規ユーザー登録時の自動usersレコード作成トリガー設定済み
 
 ### 2-3. マスターデータ投入
 
-- [ ] スキルデータをINSERT（本ファイルのスキルデータを使用）
-- [ ] 職業データをINSERT
+- [x] スキルデータをINSERT（32スキル全て）
+- [x] 職業データをINSERT（戦士・魔法使い・武闘家・弓使い）
 
 **✅ Phase 2 完了条件：** Supabaseダッシュボードで全テーブルが作成されている
 
@@ -296,11 +292,11 @@ VITE_SUPABASE_ANON_KEY=your_anon_key
 
 ### 3-1. 型定義
 
-- [ ] `src/types/index.ts`（Character, Skill, Job, Equipment など全型定義）
+- [x] `src/types/index.ts`（Character, Skill, Job, Equipment など全型定義）
 
 ### 3-2. キャラクター生成
 
-- [ ] `src/pages/CharacterCreatePage.tsx`
+- [x] `src/pages/CharacterCreatePage.tsx`
   - 職業選択UI（戦士 / 魔法使い / 武闘家 / 弓使い）
   - キャラ名入力
   - 職業の8スキルからランダムで4つ抽選するロジック
@@ -308,28 +304,20 @@ VITE_SUPABASE_ANON_KEY=your_anon_key
 
 ### 3-3. キャラクター一覧
 
-- [ ] `src/pages/CharacterListPage.tsx`
+- [x] `src/pages/CharacterListPage.tsx`
   - 所持キャラ一覧表示
   - レベル・ステータス表示
   - キャラ詳細モーダル
 
 ### 3-4. ステータス計算
 
-- [ ] `src/utils/stats.ts`
+- [x] `src/utils/stats.ts`
   - レベルごとのステータス計算（線形成長：Lv50で約5倍）
   - 装備込みの最終ステータス計算
 
-```ts
-// 成長計算式（例）
-const calcStat = (base: number, level: number): number => {
-  const growthPerLevel = (base * 4) / 49;
-  return Math.floor(base + growthPerLevel * (level - 1));
-};
-```
-
 ### 3-5. キャラクター合成（上限突破）
 
-- [ ] `src/components/CharacterFusion.tsx`
+- [ ] `src/components/CharacterFusion.tsx`（後回し）
   - 同じ職業のキャラを1体消費してレベル上限+5（最大Lv100まで）
   - Supabase更新処理
 
@@ -343,13 +331,15 @@ const calcStat = (base: number, level: number): number => {
 
 ### 4-1. 装備一覧・所持品
 
-- [ ] `src/pages/EquipmentPage.tsx`
-  - 所持装備一覧（武器・防具・アクセサリー）
+- [x] `src/pages/EquipmentPage.tsx`
+  - 所持装備一覧（武器・防具・アクセサリータブ）
   - 装備着脱UI（キャラごとに3スロット）
+  - テスト用装備入手ボタン実装済み
+  - 仮装備データ18種をSupabaseに投入済み
 
 ### 4-2. 装備効果反映
 
-- [ ] `src/utils/stats.ts` に装備ステータス加算を追加
+- [x] `src/utils/stats.ts` に装備ステータス加算を実装済み
   - 最終ステータス = ベース成長値 + 装備合計
 
 **✅ Phase 4 完了条件：** 装備の着脱とステータス反映ができる
@@ -362,46 +352,32 @@ const calcStat = (base: number, level: number): number => {
 
 ### 5-1. バトル計算ロジック
 
-- [ ] `src/utils/battle.ts`
-  - ダメージ計算：`(22 × 威力 × ATK ÷ DEF) ÷ 50 + 2`
-  - 回復計算：`(威力 × ATK) ÷ 500`
-  - クリティカル：基本5%で×1.5（鷹の目+30%、急所突きは必中）
-  - 乱数処理
+- [x] `src/utils/battle.ts`
+  - ダメージ計算・回復計算・クリティカル・有効SPD計算
 
 ### 5-2. 状態異常処理
 
-- [ ] `src/utils/statusEffects.ts`
-  - 毒：毎ターンHP減少
-  - 麻痺：毎ターン行動不能判定
-  - スタン：1ターン行動不能
-  - シールド：ダメージ吸収（鉄壁スキル）
-  - デバフ：ステータス低下（SPDダウンなど）
-  - 封印：パッシブスキル無効化
-  - 重複なし / 複数種同時付与可
+- [x] 毒・麻痺・スタン・シールド・SPDデバフ・封印を `battleEngine.ts` 内で実装
 
 ### 5-3. バトルターン管理
 
-- [ ] `src/utils/battleEngine.ts`
-  - SPD順の行動順ソート
-  - ターン進行（最大30ターン → 引き分け）
-  - 勝敗判定（どちらかのパーティ全滅）
-  - CPUロジック：スキルを順番に発動（AIなし）
-  - パッシブスキルの発動タイミング管理（被ダメージ時・攻撃時など）
+- [x] `src/utils/battleEngine.ts`
+  - SPD順ソート・最大30ターン・勝敗判定
+  - 全32スキル実装（パッシブを含む）
+  - CPU自動生成
+  - **各キャラは自分のターンにパッシブ以外のスキルをすべて発動**（ラウンドロビン廃止）
+  - 各ログ行にCharSnapshotを埋め込み（HPリアルタイム同期用）
 
 ### 5-4. バトルUI
 
-- [ ] `src/pages/BattlePage.tsx`
-  - 4v4のキャラ配置表示
-  - HP / 状態異常表示
-  - ターンアニメーション
-  - バトルログ表示
+- [x] `src/pages/BattlePage.tsx`
+  - パーティ選択 → バトルアニメーション → 結果表示
+  - HP/状態異常表示・ログアニメーション（ターンヘッダー200ms・アクション600ms）
+  - HPバーリアルタイム更新（CharSnapshotをBattleLogEntryに埋め込み、各ログ表示時に同期）
 
 ### 5-5. バトル結果・報酬
 
-- [ ] `src/pages/BattleResultPage.tsx`
-  - 勝敗表示
-  - 獲得経験値・ゴールド・装備表示
-  - Supabaseへの報酬反映
+- [x] 報酬付与（勝利: EXP+100/Gold+50、引き分け: EXP+30/Gold+10、敗北: EXP+10）をBattlePage内で実装
 
 **✅ Phase 5 完了条件：** バトルが最初から最後まで動作し報酬が反映される
 
@@ -413,29 +389,30 @@ const calcStat = (base: number, level: number): number => {
 
 ### 6-1. クエスト画面
 
-- [ ] `src/pages/QuestPage.tsx`
-  - クエスト一覧（解放条件付き）
-  - クリア状態の管理
-  - クエスト選択→バトルへ遷移
+- [x] `src/pages/QuestPage.tsx`
+  - クエスト一覧（解放条件・難易度表示付き）
+  - クリア状態の管理（user_questsに記録）
+  - クエスト選択→バトルへ遷移（報酬・難易度をstateで渡す）
+  - クエストデータ8本をSupabaseに投入済み
 
 ### 6-2. 自由バトル画面
 
-- [ ] `src/pages/FreeBattlePage.tsx`
-  - パーティ選択UI
-  - CPU編成の自動生成
-  - バトルページへ遷移
+- [x] `src/pages/BattlePage.tsx` で自由バトル・クエストバトル両対応
+  - **パーティ選択画面を廃止**。localStorageのデッキを読み込んで自動バトル開始
+  - デッキ未設定の場合は「デッキ編成へ」誘導画面を表示
+  - フェーズ: `loading → empty → fighting → done`
 
 ### 6-3. ホーム画面
 
-- [ ] `src/pages/HomePage.tsx`
-  - ナビゲーション（キャラ / 装備 / クエスト / バトル）
-  - ゴールド・プレイヤー情報表示
+- [x] `src/pages/HomePage.tsx`
+  - ナビゲーション（キャラ / 装備 / クエスト / **デッキ編成** / 自由バトル）
+  - ゴールド表示・プレイヤーメールアドレス表示
 
 ### 6-4. 全体UI調整
 
-- [ ] スマホ対応（Tailwindのレスポンシブ確認）
-- [ ] ローディング・エラー状態の処理
-- [ ] 画面遷移アニメーション
+- [x] スマホ対応（モバイルファーストで実装済み）
+- [x] ローディング・エラー状態の処理（全ページ実装済み）
+- [ ] 画面遷移アニメーション（後回し）
 
 ### 6-5. Capacitor対応（アプリ化）
 
@@ -462,7 +439,8 @@ npx cap sync
 soul-palette/
 ├── public/
 ├── src/
-│   ├── components/       # 再利用UIコンポーネント
+│   ├── components/
+│   │   └── CharEquipModal.tsx    # キャラ装備変更モーダル（共通）
 │   ├── contexts/
 │   │   └── AuthContext.tsx
 │   ├── lib/
@@ -474,16 +452,14 @@ soul-palette/
 │   │   ├── CharacterCreatePage.tsx
 │   │   ├── EquipmentPage.tsx
 │   │   ├── QuestPage.tsx
-│   │   ├── FreeBattlePage.tsx
-│   │   ├── BattlePage.tsx
-│   │   └── BattleResultPage.tsx
+│   │   ├── DeckPage.tsx          # デッキ編成（localStorage自動保存）
+│   │   └── BattlePage.tsx
 │   ├── types/
 │   │   └── index.ts
 │   ├── utils/
 │   │   ├── stats.ts
 │   │   ├── battle.ts
-│   │   ├── battleEngine.ts
-│   │   └── statusEffects.ts
+│   │   └── battleEngine.ts
 │   ├── App.tsx
 │   └── main.tsx
 ├── .env.local
@@ -506,6 +482,7 @@ soul-palette/
 6. **コメント**: 日本語でロジックの説明を記載
 7. **ファイル分割**: 1ファイル200行を超えたら分割を検討
 8. **スマホ対応**: Tailwindのモバイルファーストで書く（`sm:` `md:` プレフィックス活用）
+9. **不明点**: わからないことがあったら思い込みで実装せず、必ずユーザーに質問してから実装する
 
 ---
 
@@ -513,12 +490,53 @@ soul-palette/
 
 | Phase | 内容 | ステータス |
 |-------|------|-----------|
-| Phase 0 | 環境構築 | 🔄 進行中（0-1〜0-4完了、0-5〜0-7はユーザー手動作業待ち） |
-| Phase 1 | 認証 | ⬜ 未着手 |
-| Phase 2 | DBスキーマ | ⬜ 未着手 |
-| Phase 3 | キャラクター機能 | ⬜ 未着手 |
-| Phase 4 | 装備機能 | ⬜ 未着手 |
-| Phase 5 | バトルエンジン | ⬜ 未着手 |
-| Phase 6 | クエスト＆仕上げ | ⬜ 未着手 |
+| Phase 0 | 環境構築 | ✅ 完了 |
+| Phase 1 | 認証 | ✅ 完了（Google OAuthは後回し） |
+| Phase 2 | DBスキーマ | ✅ 完了 |
+| Phase 3 | キャラクター機能 | ✅ 完了（上限突破は後回し） |
+| Phase 4 | 装備機能 | ✅ 完了 |
+| Phase 5 | バトルエンジン | ✅ 完了 |
+| Phase 6 | クエスト＆仕上げ | ✅ 完了 |
+| 追加改善 | バトル演出・ゲームバランス調整 | 🔄 進行中 |
 
 > ステータス凡例: ⬜ 未着手 / 🔄 進行中 / ✅ 完了
+
+---
+
+## ■ 追加改善ログ
+
+### バトル演出改善
+- [x] HPバーリアルタイム更新：各ログ行にCharSnapshotを埋め込み、アニメーション中に同期
+- [x] バトル速度調整：ターンヘッダー200ms・アクション600ms
+
+### バトルバランス調整
+- [x] 自分のターンでパッシブ以外のスキルをすべて発動するよう変更（スキルラウンドロビン廃止）
+
+### デッキ編成システム
+- [x] `src/pages/DeckPage.tsx` 新規追加
+  - 4体枠のデッキスロット表示（タップで装備変更、×で取り外し）
+  - 所持キャラ一覧（タップでデッキ追加、🛡️ボタンで装備変更）
+  - デッキをlocalStorage（`soulpalette_deck`）に自動保存・復元
+- [x] バトル開始フロー変更：パーティ選択画面廃止 → localStorageデッキを自動使用
+- [x] ホームにデッキ編成ボタン追加、自由バトルは `/battle` 直行
+
+### キャラクター詳細改善
+- [x] キャラ一覧・詳細モーダルにEXP表示を追加（現在EXP / 次レベル必要EXP）
+- [x] MAX レベル時は「MAX」バッジ表示
+
+### 装備変更UX改善
+- [x] `src/components/CharEquipModal.tsx` 新規追加（共通装備変更モーダル）
+  - 武器・防具・アクセサリーの3スロット表示
+  - スロットタップで所持装備リストから選択・変更・外すが可能
+  - 他キャラ装備中のアイテムは「〇〇に装備中」と表示、タップで移動
+- [x] デッキ編成画面のデッキスロットからCharEquipModal呼び出し対応
+- [x] キャラクター詳細モーダルに「装備を変更する」ボタン追加
+
+### 個体値（IV）システム
+- [x] `characters` テーブルに `iv_hp / iv_atk / iv_def`（integer 0〜255）カラム追加
+- [x] キャラ作成時にランダム生成してDB保存
+- [x] `calcStats`（stats.ts / battle.ts）に IV 加算を追加（HP+iv_hp, ATK+iv_atk, DEF+iv_def）
+- [x] バトルでプレイヤーキャラの IV がステータスに反映
+- [x] キャラ枠の色を個体値に同期：`rgb(iv_atk, iv_hp, iv_def)`（R=ATK, G=HP, B=DEF）
+  - キャラ一覧カード・デッキスロット・デッキリスト行すべてに適用
+- [x] キャラ詳細モーダルに個体値の数値を各色で表示
