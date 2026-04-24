@@ -5,9 +5,15 @@ import { useAuth } from '../contexts/AuthContext'
 import { calcStats } from '../utils/battle'
 import { initBattleChar, generateCpuTeam, runBattle } from '../utils/battleEngine'
 import { loadDeckIds } from './DeckPage'
-import type { BattleCharacter, BattleResult, Character, Job, Skill } from '../types'
+import type { BattleCharacter, BattleLogEntry, BattleResult, Character, Job, Skill } from '../types'
 
 const JOB_ICONS: Record<number, string> = { 1: '⚔️', 2: '🔮', 3: '👊', 4: '🏹' }
+const SPEEDS = [0.5, 1, 2, 3] as const
+const SPEED_KEY = 'soulpalette_battle_speed'
+const loadSpeed = (): number => {
+  const v = parseFloat(localStorage.getItem(SPEED_KEY) ?? '')
+  return SPEEDS.includes(v as typeof SPEEDS[number]) ? v : 1
+}
 
 const CharCard = ({ char }: { char: BattleCharacter }) => (
   <div className={`bg-gray-700 rounded-lg flex flex-col items-center justify-center p-1 h-16 ${!char.isAlive ? 'opacity-40' : ''}`}>
@@ -56,6 +62,15 @@ const BattlePage = () => {
   const [cpuTeam, setCpuTeam] = useState<BattleCharacter[]>([])
   const [result, setResult] = useState<BattleResult | null>(null)
   const [currentLog, setCurrentLog] = useState<string>('')
+  const [speed, setSpeed] = useState<number>(loadSpeed)
+
+  // mutable refs for use inside scheduled callbacks
+  const speedRef = useRef(loadSpeed())
+  const logsRef = useRef<BattleLogEntry[]>([])
+  const currentLogIndexRef = useRef(-1)
+  const phaseRef = useRef<'loading' | 'empty' | 'fighting' | 'done'>('loading')
+
+  useEffect(() => { phaseRef.current = phase }, [phase])
 
   useEffect(() => {
     if (!user) return
@@ -70,19 +85,57 @@ const BattlePage = () => {
     fetch()
   }, [user])
 
-  // キャラ読み込み完了後、デッキを取得して自動バトル開始
   useEffect(() => {
     if (!charsLoaded || autoStarted.current) return
     autoStarted.current = true
     const ids = loadDeckIds()
     const validIds = ids.filter(id => myChars.some(c => c.id === id))
-    if (validIds.length === 0) {
-      setPhase('empty')
-      return
-    }
+    if (validIds.length === 0) { setPhase('empty'); return }
     startBattle(validIds)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [charsLoaded])
+
+  const applySnapshot = (logs: BattleLogEntry[], idx: number) => {
+    const snap = logs[idx].snapshot
+    const apply = (prev: BattleCharacter[]) =>
+      prev.map(c => {
+        const s = snap.find(x => x.id === c.id)
+        return s ? { ...c, currentHp: s.currentHp, shield: s.shield, isAlive: s.isAlive, statusEffects: s.statusEffects } : c
+      })
+    setPlayerTeam(apply)
+    setCpuTeam(apply)
+  }
+
+  const scheduleFrom = (startIdx: number) => {
+    timeoutIds.current.forEach(id => clearTimeout(id))
+    timeoutIds.current = []
+    const logs = logsRef.current
+    const spd = speedRef.current
+    let delay = 0
+    for (let i = startIdx; i < logs.length; i++) {
+      delay += Math.round((logs[i].message.startsWith('===') ? 400 : 1200) / spd)
+      const idx = i
+      const id = setTimeout(() => {
+        currentLogIndexRef.current = idx
+        setCurrentLog(logs[idx].message)
+        applySnapshot(logs, idx)
+        if (idx === logs.length - 1) {
+          const doneId = setTimeout(() => setPhase('done'), Math.round(800 / speedRef.current))
+          timeoutIds.current.push(doneId)
+        }
+      }, delay)
+      timeoutIds.current.push(id)
+    }
+  }
+
+  const changeSpeed = (newSpeed: number) => {
+    speedRef.current = newSpeed
+    setSpeed(newSpeed)
+    localStorage.setItem(SPEED_KEY, String(newSpeed))
+    if (phaseRef.current === 'fighting') {
+      scheduleFrom(currentLogIndexRef.current + 1)
+    }
+  }
 
   const startBattle = async (ids: string[]) => {
     battleIds.current = ids
@@ -103,28 +156,9 @@ const BattlePage = () => {
 
     const res = runBattle(pTeam.map(c => ({ ...c })), cTeam.map(c => ({ ...c })))
     setResult(res)
-
-    timeoutIds.current = []
-    let delay = 0
-    res.logs.forEach((log, i) => {
-      const isHeader = log.message.startsWith('===')
-      delay += isHeader ? 400 : 1200
-      const id = setTimeout(() => {
-        setCurrentLog(log.message)
-        setPlayerTeam(prev => prev.map(c => {
-          const s = log.snapshot.find(x => x.id === c.id)
-          return s ? { ...c, currentHp: s.currentHp, shield: s.shield, isAlive: s.isAlive, statusEffects: s.statusEffects } : c
-        }))
-        setCpuTeam(prev => prev.map(c => {
-          const s = log.snapshot.find(x => x.id === c.id)
-          return s ? { ...c, currentHp: s.currentHp, shield: s.shield, isAlive: s.isAlive, statusEffects: s.statusEffects } : c
-        }))
-        if (i === res.logs.length - 1) {
-          setTimeout(() => setPhase('done'), 800)
-        }
-      }, delay)
-      timeoutIds.current.push(id)
-    })
+    logsRef.current = res.logs
+    currentLogIndexRef.current = -1
+    scheduleFrom(0)
   }
 
   const skipBattle = () => {
@@ -161,14 +195,12 @@ const BattlePage = () => {
     navigate(questState?.questId ? '/quest' : '/')
   }
 
-  // ===== 読み込み中 =====
   if (phase === 'loading') return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <p className="text-purple-400">バトル準備中...</p>
     </div>
   )
 
-  // ===== デッキ未設定 =====
   if (phase === 'empty') return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center gap-4 px-8 text-center">
       <div className="text-5xl mb-2">🃏</div>
@@ -177,21 +209,29 @@ const BattlePage = () => {
       <button onClick={() => navigate('/deck')} className="mt-2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-xl transition-colors">
         デッキ編成へ
       </button>
-      <button onClick={() => navigate(-1)} className="text-gray-400 text-sm underline">
-        戻る
-      </button>
+      <button onClick={() => navigate(-1)} className="text-gray-400 text-sm underline">戻る</button>
     </div>
   )
 
-  // ===== バトル画面（fighting / done） =====
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-      <header className="bg-gray-800 border-b border-gray-700 px-4 py-2 relative flex items-center justify-center">
-        <h1 className="font-bold">{questState?.questTitle ?? 'バトル'}</h1>
+      <header className="bg-gray-800 border-b border-gray-700 px-4 py-2 flex items-center gap-2">
+        <h1 className="font-bold flex-1 text-center">{questState?.questTitle ?? 'バトル'}</h1>
+        {/* 倍速ボタン */}
+        <div className="flex gap-1">
+          {SPEEDS.map(s => (
+            <button key={s} onClick={() => changeSpeed(s)}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                speed === s ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'
+              }`}>
+              {s}x
+            </button>
+          ))}
+        </div>
         {phase === 'fighting' && (
           <button onClick={skipBattle}
-            className="absolute right-4 text-xs text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded transition-colors">
-            スキップ »
+            className="text-xs text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded transition-colors">
+            skip
           </button>
         )}
       </header>

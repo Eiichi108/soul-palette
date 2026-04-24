@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import { calcStats } from '../utils/battle'
 import { initBattleChar, generateCpuTeam, runBattle } from '../utils/battleEngine'
-import type { BattleCharacter, BattleResult, Character, Job, Skill } from '../types'
+import type { BattleCharacter, BattleLogEntry, BattleResult, Character, Job, Skill } from '../types'
 
 const JOB_ICONS: Record<number, string> = { 1: '⚔️', 2: '🔮', 3: '👊', 4: '🏹' }
+const SPEEDS = [0.5, 1, 2, 3] as const
+const SPEED_KEY = 'soulpalette_battle_speed'
+const loadSpeed = (): number => {
+  const v = parseFloat(localStorage.getItem(SPEED_KEY) ?? '')
+  return SPEEDS.includes(v as typeof SPEEDS[number]) ? v : 1
+}
 
 const CharCard = ({ char }: { char: BattleCharacter }) => (
   <div className={`bg-gray-700 rounded-lg flex flex-col items-center justify-center p-1 h-16 ${!char.isAlive ? 'opacity-40' : ''}`}>
@@ -41,19 +48,74 @@ const CharHpBar = ({ char }: { char: BattleCharacter }) => {
 type Props = {
   playerChars: (Character & { job: Job; skills: Skill[] })[]
   avgLevel: number
-  onContinue: () => void
+  initialHp?: Record<string, number>
+  autoMode?: boolean
+  onContinue: (finalHp: Record<string, number>) => void
   onGameOver: () => void
 }
 
-const AdventureBattle = ({ playerChars, avgLevel, onContinue, onGameOver }: Props) => {
+const AdventureBattle = ({ playerChars, avgLevel, initialHp, autoMode, onContinue, onGameOver }: Props) => {
+  const { user } = useAuth()
   const [playerTeam, setPlayerTeam] = useState<BattleCharacter[]>([])
   const [cpuTeam, setCpuTeam] = useState<BattleCharacter[]>([])
   const [currentLog, setCurrentLog] = useState<string>('')
   const [battlePhase, setBattlePhase] = useState<'loading' | 'fighting' | 'done'>('loading')
   const [winner, setWinner] = useState<'player' | 'cpu' | 'draw' | null>(null)
+  const [rewardExp, setRewardExp] = useState(0)
+  const [rewardGold, setRewardGold] = useState(0)
+  const [speed, setSpeed] = useState<number>(loadSpeed)
+
   const started = useRef(false)
   const timeoutIds = useRef<ReturnType<typeof setTimeout>[]>([])
   const battleResult = useRef<BattleResult | null>(null)
+  const logsRef = useRef<BattleLogEntry[]>([])
+  const currentLogIndexRef = useRef(-1)
+  const speedRef = useRef(loadSpeed())
+  const battlePhaseRef = useRef<'loading' | 'fighting' | 'done'>('loading')
+
+  useEffect(() => { battlePhaseRef.current = battlePhase }, [battlePhase])
+
+  const applySnapshot = (logs: BattleLogEntry[], idx: number) => {
+    const snap = logs[idx].snapshot
+    const apply = (prev: BattleCharacter[]) =>
+      prev.map(c => {
+        const s = snap.find(x => x.id === c.id)
+        return s ? { ...c, currentHp: s.currentHp, shield: s.shield, isAlive: s.isAlive, statusEffects: s.statusEffects } : c
+      })
+    setPlayerTeam(apply)
+    setCpuTeam(apply)
+  }
+
+  const scheduleFrom = (startIdx: number) => {
+    timeoutIds.current.forEach(id => clearTimeout(id))
+    timeoutIds.current = []
+    const logs = logsRef.current
+    const spd = speedRef.current
+    let delay = 0
+    for (let i = startIdx; i < logs.length; i++) {
+      delay += Math.round((logs[i].message.startsWith('===') ? 400 : 1200) / spd)
+      const idx = i
+      const id = setTimeout(() => {
+        currentLogIndexRef.current = idx
+        setCurrentLog(logs[idx].message)
+        applySnapshot(logs, idx)
+        if (idx === logs.length - 1) {
+          const doneId = setTimeout(() => setBattlePhase('done'), Math.round(800 / speedRef.current))
+          timeoutIds.current.push(doneId)
+        }
+      }, delay)
+      timeoutIds.current.push(id)
+    }
+  }
+
+  const changeSpeed = (newSpeed: number) => {
+    speedRef.current = newSpeed
+    setSpeed(newSpeed)
+    localStorage.setItem(SPEED_KEY, String(newSpeed))
+    if (battlePhaseRef.current === 'fighting') {
+      scheduleFrom(currentLogIndexRef.current + 1)
+    }
+  }
 
   useEffect(() => {
     if (started.current) return
@@ -64,10 +126,16 @@ const AdventureBattle = ({ playerChars, avgLevel, onContinue, onGameOver }: Prop
       const { data: skills } = await supabase.from('skills').select('*')
       if (!jobs || !skills) return
 
-      const pTeam = playerChars.map(c =>
-        initBattleChar(c.id, c.name, c.job_id, 'player',
-          calcStats(c.job, c.level, [], { hp: c.iv_hp, atk: c.iv_atk, def: c.iv_def }), c.skills)
-      )
+      const pTeam = playerChars.map(c => {
+        const stats = calcStats(c.job, c.level, [], { hp: c.iv_hp, atk: c.iv_atk, def: c.iv_def })
+        const bc = initBattleChar(c.id, c.name, c.job_id, 'player', stats, c.skills)
+        if (initialHp && initialHp[c.id] !== undefined) {
+          const carried = Math.max(0, initialHp[c.id])
+          bc.currentHp = carried
+          bc.isAlive = carried > 0
+        }
+        return bc
+      })
       const cTeam = generateCpuTeam(avgLevel, jobs as Job[], skills as Skill[])
       setPlayerTeam(pTeam)
       setCpuTeam(cTeam)
@@ -76,27 +144,54 @@ const AdventureBattle = ({ playerChars, avgLevel, onContinue, onGameOver }: Prop
       const res = runBattle(pTeam.map(c => ({ ...c })), cTeam.map(c => ({ ...c })))
       battleResult.current = res
       setWinner(res.winner)
-
-      timeoutIds.current = []
-      let delay = 0
-      res.logs.forEach((log, i) => {
-        delay += log.message.startsWith('===') ? 400 : 1200
-        const id = setTimeout(() => {
-          setCurrentLog(log.message)
-          const applySnap = (prev: BattleCharacter[]) =>
-            prev.map(c => {
-              const s = log.snapshot.find(x => x.id === c.id)
-              return s ? { ...c, currentHp: s.currentHp, shield: s.shield, isAlive: s.isAlive, statusEffects: s.statusEffects } : c
-            })
-          setPlayerTeam(applySnap)
-          setCpuTeam(applySnap)
-          if (i === res.logs.length - 1) setTimeout(() => setBattlePhase('done'), 800)
-        }, delay)
-        timeoutIds.current.push(id)
-      })
+      logsRef.current = res.logs
+      currentLogIndexRef.current = -1
+      scheduleFrom(0)
     }
     run()
   }, [])
+
+  // バトル終了時に EXP・Gold 付与
+  useEffect(() => {
+    if (battlePhase !== 'done' || !user || !winner) return
+    const exp = winner === 'player' ? 100 : winner === 'draw' ? 30 : 10
+    const gold = winner === 'player' ? 50 : winner === 'draw' ? 10 : 0
+    setRewardExp(exp)
+    setRewardGold(gold)
+    const apply = async () => {
+      for (const char of playerChars) {
+        // 冒険中に複数バトルしても正しく加算されるよう DB から最新値を取得
+        const { data: cur } = await supabase
+          .from('characters').select('exp, level, max_level').eq('id', char.id).single()
+        if (!cur) continue
+        const newExp = cur.exp + exp
+        const newLevel = newExp >= cur.level * 100 && cur.level < cur.max_level ? cur.level + 1 : cur.level
+        await supabase.from('characters').update({
+          exp: newLevel > cur.level ? newExp - cur.level * 100 : newExp,
+          level: newLevel,
+        }).eq('id', char.id)
+      }
+      if (gold > 0) {
+        const { data: u } = await supabase.from('users').select('gold').eq('id', user.id).single()
+        await supabase.from('users').update({ gold: (u?.gold ?? 0) + gold }).eq('id', user.id)
+      }
+    }
+    apply()
+  }, [battlePhase, winner])
+
+  // 自動冒険：バトル終了後に自動で次へ
+  useEffect(() => {
+    if (battlePhase !== 'done' || !autoMode || !battleResult.current) return
+    const res = battleResult.current
+    const finalHp: Record<string, number> = {}
+    res.finalPlayerTeam.forEach(c => { finalHp[c.id] = Math.max(0, c.currentHp) })
+
+    const id = setTimeout(() => {
+      if (res.winner !== 'cpu') onContinue(finalHp)
+      else onGameOver()
+    }, 2000)
+    return () => clearTimeout(id)
+  }, [battlePhase, autoMode])
 
   const skipBattle = () => {
     const res = battleResult.current
@@ -107,6 +202,14 @@ const AdventureBattle = ({ playerChars, avgLevel, onContinue, onGameOver }: Prop
     setCpuTeam(res.finalCpuTeam)
     setCurrentLog(res.logs[res.logs.length - 1]?.message ?? '')
     setBattlePhase('done')
+  }
+
+  const handleContinue = () => {
+    const res = battleResult.current
+    if (!res) return
+    const finalHp: Record<string, number> = {}
+    res.finalPlayerTeam.forEach(c => { finalHp[c.id] = Math.max(0, c.currentHp) })
+    onContinue(finalHp)
   }
 
   if (battlePhase === 'loading') {
@@ -132,11 +235,24 @@ const AdventureBattle = ({ playerChars, avgLevel, onContinue, onGameOver }: Prop
         </div>
       </div>
 
+      {/* 倍速 / スキップ */}
       {battlePhase === 'fighting' && (
-        <button onClick={skipBattle}
-          className="w-full text-xs text-gray-500 hover:text-gray-300 py-1 text-right pr-1 transition-colors">
-          スキップ »
-        </button>
+        <div className="flex items-center justify-between">
+          <div className="flex gap-1">
+            {SPEEDS.map(s => (
+              <button key={s} onClick={() => changeSpeed(s)}
+                className={`text-xs px-2 py-1 rounded transition-colors ${
+                  speed === s ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'
+                }`}>
+                {s}x
+              </button>
+            ))}
+          </div>
+          <button onClick={skipBattle}
+            className="text-xs text-gray-500 hover:text-gray-300 bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded transition-colors">
+            skip »
+          </button>
+        </div>
       )}
 
       <div className="bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 min-h-[64px] flex items-center">
@@ -155,16 +271,24 @@ const AdventureBattle = ({ playerChars, avgLevel, onContinue, onGameOver }: Prop
           }`}>
             {winner === 'player' ? '🏆 勝利！' : winner === 'draw' ? '🤝 引き分け' : '💀 敗北...'}
           </div>
-          {winner !== 'cpu' ? (
-            <button onClick={onContinue}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl transition-colors">
-              進む
-            </button>
-          ) : (
-            <button onClick={onGameOver}
-              className="w-full bg-red-800 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl transition-colors">
-              冒険終了
-            </button>
+          <div className="text-xs text-gray-400">
+            EXP +{rewardExp}{rewardGold > 0 && ` / Gold +${rewardGold}`}
+          </div>
+          {autoMode && winner !== 'cpu' && (
+            <p className="text-xs text-gray-500">自動で次へ進みます...</p>
+          )}
+          {!autoMode && (
+            winner !== 'cpu' ? (
+              <button onClick={handleContinue}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl transition-colors">
+                進む
+              </button>
+            ) : (
+              <button onClick={onGameOver}
+                className="w-full bg-red-800 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl transition-colors">
+                冒険終了
+              </button>
+            )
           )}
         </div>
       )}
